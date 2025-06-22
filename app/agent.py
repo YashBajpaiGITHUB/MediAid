@@ -1,22 +1,34 @@
-# ✅ app/agent.py
-
-from langchain_community.vectorstores import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.llms import Ollama
+from langchain.vectorstores import Chroma
+from sentence_transformers import SentenceTransformer
+from langchain.llms import Ollama
+from langchain.embeddings.base import Embeddings  # Import base class
 import urllib.parse
 import requests
+from typing import List
 
-# ✅ Load the vector DB
-embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+# ✅ Custom wrapper for SentenceTransformer
+class SentenceTransformerEmbeddings(Embeddings):
+    def __init__(self, model_name: str = "all-mpnet-base-v2"):
+        self.model = SentenceTransformer(model_name)
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        return self.model.encode(texts, show_progress_bar=False).tolist()
+
+    def embed_query(self, text: str) -> List[float]:
+        return self.model.encode([text], show_progress_bar=False)[0].tolist()
+
+# ✅ Instantiate embedding wrapper
+embedding_function = SentenceTransformerEmbeddings()
+
+# ✅ VectorDB setup
 db = Chroma(
     persist_directory="app/vector_db",
-    embedding_function=embedding_model
+    embedding_function=embedding_function
 )
 
-# ✅ Load Ollama (local model)
 llm = Ollama(model="mistral")
 
-# 🧠 Function to get first-aid response using retriever and local LLM
+# ✅ First-aid answer generator
 def get_first_aid_response(query: str) -> str:
     retriever = db.as_retriever(search_kwargs={"k": 4})
     docs = retriever.invoke(query)
@@ -35,6 +47,8 @@ Give a concise and clear first-aid solution."""
 
     response = llm.invoke(prompt)
     return response
+import urllib.parse
+import requests
 
 def get_youtube_video_url(query):
     try:
@@ -48,7 +62,3 @@ def get_youtube_video_url(query):
     except Exception as e:
         print(f"Video fetch error: {e}")
     return None
-
-def get_google_maps_url(query):
-    base = "https://www.google.com/maps/search/hospitals+near+"
-    return base + urllib.parse.quote(query)
